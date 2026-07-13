@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: keycloak
+  namespace: chill-crate
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"  # keycloak sends large headers
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - dev.keycloak.mikeflot.com
+      secretName: keycloak-tls          # cert-manager creates/fills this
+  rules:
+    - host: dev.keycloak.mikeflot.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak
+                port:
+                  number: 8080
