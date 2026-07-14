@@ -1,14 +1,24 @@
 # chill-crate-infra
 
-Kubernetes manifests for the chill-crate platform. Manages Postgres, MinIO and the ArgoCD GitOps setup that deploys the API.
+Kubernetes manifests for the chill-crate platform. Manages Postgres, MinIO, Keycloak and the ArgoCD GitOps setup that deploys the API.
 
 ## Structure
 
 ```
 .
 ├── argocd/
-│   ├── chill-crate-api-app.yaml   # ArgoCD Application — syncs the API Helm chart from chill-crate-api repo
-│   └── image-updater.yaml         # ArgoCD Image Updater — watches ghcr.io and updates image digest on push
+│   ├── kustomization.yaml         # installs ArgoCD itself (upstream manifests) patched with the heavy-workload nodeSelector
+│   ├── nodeselector-patch.yaml    # JSON6902 patch adding nodeSelector workload=heavy to ArgoCD Deployments/StatefulSets
+│   └── image-updater/
+│       └── image-updater.yaml     # ArgoCD Image Updater — watches ghcr.io and updates image digest on push
+├── argocd-apps/
+│   └── chill-crate-api-app.yaml   # ArgoCD Application — syncs the API Helm chart from chill-crate-api repo
+├── keycloak/
+│   ├── deployment.yaml            # sized/affined for the "heavy" node; requests 1700Mi/500m, limits 2Gi/2000m
+│   ├── service.yaml
+│   ├── ingress.yaml               # dev.keycloak.mikeflot.com, TLS via letsencrypt-prod
+│   ├── secret.example.yaml        # copy to secret.yaml and fill in credentials
+│   └── secret.yaml                # gitignored
 ├── minio/
 │   ├── deployment.yaml
 │   ├── pvc.yaml
@@ -65,14 +75,24 @@ kubectl apply -f minio/
 
 ### 5. ArgoCD
 
-Apply the Application and Image Updater manifests after ArgoCD is installed on the cluster:
+Install ArgoCD itself (pulled from the upstream manifests and patched to schedule onto the `workload: heavy` node), then apply the Application and Image Updater:
 
 ```bash
-kubectl apply -f argocd/chill-crate-api-app.yaml
-kubectl apply -f argocd/image-updater.yaml
+kubectl apply -k argocd/ --server-side --force-conflicts
+kubectl apply -f argocd-apps/chill-crate-api-app.yaml
+kubectl apply -f argocd/image-updater/image-updater.yaml
 ```
 
 ArgoCD will sync the API from the `deploy/chart` path in the [chill-crate-api](https://github.com/mic615/chill-crate-api) repo and keep it up to date whenever a new image is pushed to `ghcr.io/mic615/chill-crate-api`.
+
+### 6. Keycloak
+
+```bash
+cp keycloak/secret.example.yaml keycloak/secret.yaml
+# edit keycloak/secret.yaml, then:
+kubectl apply -f keycloak/secret.yaml
+kubectl apply -f keycloak/
+```
 
 ## How deployments work
 

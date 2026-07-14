@@ -6,7 +6,7 @@ metadata:
 spec:
   replicas: 1
   strategy:
-    type: Recreate 
+    type: Recreate
   selector:
     matchLabels:
       app: keycloak
@@ -43,14 +43,14 @@ spec:
             - name: KC_HEALTH_ENABLED
               value: "true"
             - name: KC_HTTP_MANAGEMENT_PORT
-              value: "9010"  # move health/mgmt off 9000
+              value: "9010" # move health/mgmt off 9000
           resources:
             requests:
-              memory: "512Mi"
-              cpu: "250m"
-            limits:
-              memory: "1Gi"
+              memory: "1700Mi"
               cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "2000m"
           startupProbe:
             httpGet:
               path: /health/started
@@ -62,7 +62,7 @@ spec:
               path: /health/ready
               port: 9010
             periodSeconds: 10
-            failureThreshold: 3  
+            failureThreshold: 3
             initialDelaySeconds: 5
           livenessProbe:
             httpGet:
@@ -70,3 +70,11 @@ spec:
               port: 9010
             periodSeconds: 10
             failureThreshold: 3
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: workload
+                    operator: In
+                    values: ["heavy"]
