@@ -1,1 +1,6 @@
 secret.yaml
+secret-*.yaml
+.DS_Store
+.terraform/
+*.tfstate
+*.tfstate.backup

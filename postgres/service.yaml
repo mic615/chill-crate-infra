@@ -4,6 +4,7 @@ metadata:
   name: postgres
   namespace: chill-crate
 spec:
+  type: ExternalName
   selector:
     app: postgres
   ports:
