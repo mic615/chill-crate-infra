@@ -1,0 +1,24 @@
+# AWS/EKS overrides for kube-prometheus-stack. This is a Helm values file, not
+# a Kubernetes manifest, so it sits outside the kustomize overlays -- layer it
+# on top of the base values instead:
+#
+#   helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+#     -n monitoring --create-namespace \
+#     -f monitoring/monitoring-values.yaml \
+#     -f monitoring/monitoring-values-stg.yaml
+#
+# Helm merges -f files left to right, so only the keys that differ belong here.
+# Note that Helm *replaces* lists rather than merging them, which is why the
+# tls block is repeated in full rather than just the host.
+grafana:
+  ingress:
+    hosts:
+      - stg.grafana.mikeflot.com
+    tls:
+      - secretName: grafana-tls
+        hosts:
+          - stg.grafana.mikeflot.com
+
+  grafana.ini:
+    server:
+      root_url: https://stg.grafana.mikeflot.com

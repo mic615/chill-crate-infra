@@ -1,0 +1,29 @@
+# EKS replacement for local-path-storage.yaml. Apply this to the EKS cluster
+# instead of the local-path provisioner -- that one is a Rancher/RKE2 thing and
+# has no equivalent here.
+#
+# EKS already creates a `gp2` StorageClass marked as the cluster default, and
+# two defaults is an error state. Un-default it first:
+#
+#   kubectl patch storageclass gp2 -p \
+#     '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}'
+#
+# gp3 is cheaper per GiB than gp2 and its baseline IOPS are not tied to volume
+# size, which matters for small volumes like Keycloak's and Prometheus'.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: gp3
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: ebs.csi.aws.com
+reclaimPolicy: Delete
+allowVolumeExpansion: true
+# EBS volumes are pinned to a single AZ. Binding late lets the scheduler place
+# the pod first and provision the volume in whichever AZ it landed in --
+# otherwise a volume can be created somewhere the pod cannot be scheduled.
+volumeBindingMode: WaitForFirstConsumer
+parameters:
+  type: gp3
+  encrypted: "true"
+  fsType: ext4

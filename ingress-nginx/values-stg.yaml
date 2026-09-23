@@ -1,0 +1,48 @@
+# ingress-nginx for the EKS cluster. Not used on the homelab, which has its own
+# ingress-nginx without any of the AWS load balancer wiring.
+#
+#   helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+#   helm repo update
+#   helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+#     --namespace ingress-nginx --create-namespace \
+#     -f ingress-nginx/values-stg.yaml
+#
+# The NLB is provisioned by the in-tree AWS cloud controller from the service
+# annotations below. That path is deprecated in favour of the AWS Load Balancer
+# Controller, which would additionally allow IP-target mode (traffic straight
+# to pods rather than via a node hop). Worth revisiting; not worth the extra
+# IAM surface to start with.
+controller:
+  replicaCount: 2
+
+  service:
+    type: LoadBalancer
+
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+      service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+      service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+
+    # Preserves the real client IP, which Keycloak needs for its forwarded
+    # header handling. The tradeoff with an instance-target NLB is that only
+    # nodes running a controller pod pass health checks -- hence 2 replicas and
+    # the anti-affinity rule below.
+    externalTrafficPolicy: Local
+
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: ingress-nginx
+                app.kubernetes.io/component: controller
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi

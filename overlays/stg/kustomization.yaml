@@ -1,0 +1,66 @@
+# AWS EKS (chill-crate-stg). stg.*.mikeflot.com, gp3 storage.
+#
+#   kubectl apply -k overlays/stg
+#
+# Two categories of difference from the dev overlay: hostnames, and the
+# StorageClass -- EKS has no local-path provisioner, so the PVCs have to bind
+# against the gp3 class created by the EBS CSI driver.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: chill-crate
+
+# namespace.yaml and storage/storageclass-gp3.yaml are bootstrap, applied once
+# before this overlay -- kustomize also refuses to load loose files from above
+# the overlay directory, so they could not live here without moving them.
+resources:
+  - ../../minio
+  - ../../keycloak
+  - postgres-externalname.yaml
+
+labels:
+  - includeSelectors: false
+    pairs:
+      environment: stg
+
+patches:
+  # Keycloak ingress: TLS host and routing host. JSON6902 rather than a
+  # strategic merge because Ingress rules and tls are plain lists with no merge
+  # key -- a merge patch would replace the whole list and lose the backend.
+  - target:
+      kind: Ingress
+      name: keycloak
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: stg.keycloak.mikeflot.com
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: stg.keycloak.mikeflot.com
+
+  # KC_HOSTNAME must match the public URL exactly or Keycloak builds broken
+  # redirect and issuer URLs. Strategic merge works here: env entries merge by
+  # name, so this replaces just this one variable and leaves the rest alone.
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: keycloak
+        namespace: chill-crate
+      spec:
+        template:
+          spec:
+            containers:
+              - name: keycloak
+                env:
+                  - name: KC_HOSTNAME
+                    value: "https://stg.keycloak.mikeflot.com"
+
+  # local-path does not exist on EKS; without this the minio PVC sits Pending.
+  - target:
+      kind: PersistentVolumeClaim
+      name: minio-pvc
+    patch: |-
+      - op: replace
+        path: /spec/storageClassName
+        value: gp3

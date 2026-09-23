@@ -1,0 +1,23 @@
+# Baremetal RKE2 homelab. dev.*.mikeflot.com, local-path storage.
+#
+# This overlay is a straight passthrough -- the component manifests already
+# carry the dev values, so there is nothing to patch. Everything that differs
+# lives in overlays/stg instead.
+#
+#   kubectl apply -k overlays/dev
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: chill-crate
+
+# namespace.yaml and storage/local-path-storage.yaml stay as one-time bootstrap
+# steps, applied before this overlay.
+resources:
+  - ../../postgres
+  - ../../minio
+  - ../../keycloak
+
+labels:
+  - includeSelectors: false
+    pairs:
+      environment: dev
